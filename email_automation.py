@@ -11,10 +11,10 @@ from google.oauth2.credentials import Credentials
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.message import MIMEMessage
-from dotenv import load_dotenv  # Importing load_dotenv
+# from dotenv import load_dotenv  # Importing load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# # Load environment variables from .env file
+# load_dotenv()
 
 
 # Scopes for Gmail API
