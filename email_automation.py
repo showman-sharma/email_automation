@@ -44,7 +44,7 @@ def get_unread_messages(service, last_timestamp):
     return messages
 
 def analyze_email(service, message):
-    """Analyze the email content and categorize it."""
+    """Analyze the email content and extract necessary information."""
     msg = service.users().messages().get(userId='me', id=message['id'], format='full').execute()
     payload = msg.get('payload', {})
     headers = payload.get('headers', [])
@@ -69,15 +69,19 @@ def analyze_email(service, message):
         data = payload.get('body', {}).get('data', '')
         body = base64.urlsafe_b64decode(data.encode('ASCII')).decode('utf-8', errors='ignore')
 
+    return from_email, subject, body
+
+def categorize_email(body):
+    """Categorize the email based on its content."""
     # Analyze content
     if re.search(r'password reset', body, re.IGNORECASE):
-        return 'password_reset', from_email, subject
+        return 'password_reset'
     elif re.search(r'refund', body, re.IGNORECASE):
-        return 'refund_request', from_email, subject
+        return 'refund_request'
     elif re.search(r'course extension', body, re.IGNORECASE):
-        return 'course_extension', from_email, subject
+        return 'course_extension'
     else:
-        return 'other', from_email, subject
+        return 'other'
 
 def create_message(to, subject, message_text):
     """Create a MIME message for sending."""
@@ -131,10 +135,13 @@ def main():
     # Connect to MongoDB Atlas
     client = get_mongo_client()
     db = client['email_automation']  # Database name
-    collection = db['timestamps']     # Collection name
+
+    # Collections
+    timestamps_collection = db['timestamps']
+    customers_collection = db['customers']
 
     # Retrieve LAST_TIMESTAMP from MongoDB
-    last_timestamp_doc = collection.find_one({'_id': 'last_timestamp'})
+    last_timestamp_doc = timestamps_collection.find_one({'_id': 'last_timestamp'})
     if last_timestamp_doc and 'timestamp' in last_timestamp_doc:
         last_timestamp = last_timestamp_doc['timestamp']
     else:
@@ -151,7 +158,17 @@ def main():
         print("No new messages.")
     else:
         for message in messages:
-            category, from_email, subject = analyze_email(service, message)
+            from_email, subject, body = analyze_email(service, message)
+
+            # Check if sender is a registered customer
+            customer = customers_collection.find_one({'email': from_email.lower()})
+            if not customer:
+                print(f"Email from unregistered user {from_email}. Skipping.")
+                continue  # Skip processing this email
+
+            # Categorize the email
+            category = categorize_email(body)
+
             response = None
 
             if category == 'password_reset':
@@ -215,7 +232,7 @@ Support Team"""
             ).execute()
 
     # Update LAST_TIMESTAMP in MongoDB
-    collection.update_one(
+    timestamps_collection.update_one(
         {'_id': 'last_timestamp'},
         {'$set': {'timestamp': current_timestamp}},
         upsert=True
