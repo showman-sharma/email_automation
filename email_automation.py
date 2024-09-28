@@ -19,7 +19,7 @@ from cohere import ClassifyExample
 # load_dotenv()
 
 # Initialize Cohere client
-cohere_api_key = os.getenv("CO_API_KEY")  # Ensure you have COHERE_API_KEY in your environment variables
+cohere_api_key = os.environ['CO_API_KEY']  # Ensure you have COHERE_API_KEY in your environment variables
 co = cohere.Client(cohere_api_key)
 
 # Scopes for Gmail API
