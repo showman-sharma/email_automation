@@ -1,7 +1,7 @@
 import os
 import base64
 import re
-import datetime
+from datetime import datetime, timezone
 import json
 import email
 from pymongo import MongoClient
@@ -19,7 +19,7 @@ from dotenv import load_dotenv  # Importing load_dotenv
 load_dotenv()
 
 # Initialize Cohere client
-cohere_api_key = os.environ.get('COHERE_API_KEY',"wibyxtNf98InxtYOFhJ6ZiQdHcNMMsIUU0OWkG7O")
+cohere_api_key = os.environ.get('COHERE_API_KEY')
 co = cohere.Client(cohere_api_key)
 
 # Scopes for Gmail API
@@ -191,11 +191,13 @@ def send_message(service, message):
     return sent_message
 
 def forward_email(service, message_id, to_email):
-    """Forward an email to a specified email address."""
+    if not to_email:
+        raise ValueError("Recipient email address is missing. Please check the MANUAL_SUPPORT_EMAIL_ID environment variable.")
+    
+    print(f"Forwarding email to {to_email}")
+
     # Fetch the original email in raw format
-    original_msg = service.users().messages().get(
-        userId='me', id=message_id, format='raw'
-    ).execute()
+    original_msg = service.users().messages().get(userId='me', id=message_id, format='raw').execute()
     raw_message = original_msg['raw']
 
     # Decode the raw message
@@ -220,8 +222,8 @@ def forward_email(service, message_id, to_email):
     # Encode the message and send
     raw_fwd = base64.urlsafe_b64encode(fwd.as_bytes()).decode()
     message = {'raw': raw_fwd}
-    send_message(service, message)
 
+    send_message(service, message)
 def main():
     """Main function to process emails."""
     service = authenticate_gmail()
@@ -243,7 +245,7 @@ def main():
         last_timestamp = str(int((datetime.datetime.utcnow() - datetime.timedelta(minutes=10)).timestamp()))
 
     # Get current timestamp
-    current_timestamp = str(int(datetime.datetime.utcnow().timestamp()))
+    current_timestamp = str(int(datetime.now(timezone.utc).timestamp()))
 
     # Retrieve unread messages
     messages = get_unread_messages(service, last_timestamp)
