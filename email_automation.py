@@ -205,7 +205,7 @@ def forward_email(service, message_id, to_email):
     # Create a new email message to forward
     fwd = MIMEMultipart()
     fwd['To'] = to_email
-    fwd['From'] = 'aiprojects345@gmail.com'  # Replace with your email if necessary
+    fwd['From'] = os.environ.get('SUPPORT_EMAIL_ID')
     fwd['Subject'] = 'FWD: ' + mime_msg['Subject']
 
     # Attach a message body
@@ -304,7 +304,8 @@ Support Team"""
 
             elif category == 'other':
                 # Forward the email
-                forward_email(service, message['id'], 'vanirudhsharma@gmail.com')  # Replace with your email
+                forward_email(service, message['id'], os.environ.get('MANUAL_SUPPORT_EMAIL_ID'))  # Replace with your email
+                
                 # Notify the sender
                 response_text = """Dear User,
 
