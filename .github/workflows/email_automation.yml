@@ -1,35 +1,35 @@
 name: Email Automation
 
 on:
-  push:
-    branches:
-      - main
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: 
 
 jobs:
-  build:
+  email_automation:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.12'
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.x'
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --no-cache-dir -r requirements.txt
 
-    - name: Run email automation
-      env:
-        MANUAL_SUPPORT_EMAIL_ID: ${{ vars.MANUAL_SUPPORT_EMAIL_ID }}
-        SUPPORT_EMAIL_ID: ${{ vars.SUPPORT_EMAIL_ID }}
-        COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
-        GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
-        MONGO_USERNAME: ${{ secrets.MONGO_USERNAME }}
-        MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
-      run: |
-        python email_automation.py
+      - name: Run email automation script
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          MONGO_USERNAME: ${{ secrets.MONGO_USERNAME }}
+          MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
+          SUPPORT_EMAIL_ID: ${{ vars.SUPPORT_EMAIL_ID }}    # Added as a variable
+          MANUAL_SUPPORT_EMAIL_ID: ${{ vars.MANUAL_SUPPORT_EMAIL_ID }}  # Added as a variable
+
+        run: |
+          python email_automation.py
