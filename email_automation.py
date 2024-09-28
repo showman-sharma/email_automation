@@ -11,6 +11,11 @@ from google.oauth2.credentials import Credentials
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.message import MIMEMessage
+from dotenv import load_dotenv  # Importing load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 
 # Scopes for Gmail API
 SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
@@ -43,6 +48,8 @@ def get_unread_messages(service, last_timestamp):
     messages = results.get('messages', [])
     return messages
 
+from email.utils import parseaddr  # Add this import at the top
+
 def analyze_email(service, message):
     """Analyze the email content and extract necessary information."""
     msg = service.users().messages().get(userId='me', id=message['id'], format='full').execute()
@@ -55,7 +62,10 @@ def analyze_email(service, message):
         if header['name'] == 'Subject':
             subject = header['value']
         elif header['name'] == 'From':
-            from_email = header['value']
+            from_email_full = header['value']
+            # Parse the email address from the 'From' header
+            from_name, from_email = parseaddr(from_email_full)
+            from_email = from_email.lower()  # Convert to lowercase for consistency
 
     # Get the email body
     body = ''
@@ -70,6 +80,7 @@ def analyze_email(service, message):
         body = base64.urlsafe_b64decode(data.encode('ASCII')).decode('utf-8', errors='ignore')
 
     return from_email, subject, body
+
 
 def categorize_email(body):
     """Categorize the email based on its content."""
