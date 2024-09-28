@@ -32,8 +32,7 @@ def get_mongo_client():
     encoded_username = quote_plus(mongo_username)
     encoded_password = quote_plus(mongo_password)
 
-    mongo_uri = f"mongodb+srv://{encoded_username}:{encoded_password}@cluster0.mongodb.net/email_automation?retryWrites=true&w=majority"
-
+    mongo_uri = f"mongodb+srv://{encoded_username}:{encoded_password}@customertickerautomatio.bik3ced.mongodb.net/?retryWrites=true&w=majority&appName=customerTickerAutomation"
     client = MongoClient(mongo_uri)
     return client
 
