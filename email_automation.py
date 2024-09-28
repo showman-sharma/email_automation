@@ -13,14 +13,13 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.message import MIMEMessage
 import cohere
 from cohere import ClassifyExample
-# from dotenv import load_dotenv  # Importing load_dotenv
+from dotenv import load_dotenv  # Importing load_dotenv
 
-# # Load environment variables from .env file
-# load_dotenv()
+# Load environment variables from .env file
+load_dotenv()
 
 # Initialize Cohere client
-cohere_api_key = json.loads(os.environ['CO_API_KEY'])  # Ensure you have COHERE_API_KEY in your environment variables
-
+cohere_api_key = os.environ.get('COHERE_API_KEY')
 co = cohere.Client(cohere_api_key)
 
 # Scopes for Gmail API
