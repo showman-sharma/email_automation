@@ -28,6 +28,7 @@ jobs:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           MONGO_USERNAME: ${{ secrets.MONGO_USERNAME }}
           MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
           SUPPORT_EMAIL_ID: ${{ vars.SUPPORT_EMAIL_ID }}    # Added as a variable
           MANUAL_SUPPORT_EMAIL_ID: ${{ vars.MANUAL_SUPPORT_EMAIL_ID }}  # Added as a variable
 
