@@ -19,7 +19,7 @@ from dotenv import load_dotenv  # Importing load_dotenv
 load_dotenv()
 
 # Initialize Cohere client
-cohere_api_key = os.environ.get('COHERE_API_KEY')
+cohere_api_key = os.environ.get('COHERE_API_KEY',"wibyxtNf98InxtYOFhJ6ZiQdHcNMMsIUU0OWkG7O")
 co = cohere.Client(cohere_api_key)
 
 # Scopes for Gmail API
