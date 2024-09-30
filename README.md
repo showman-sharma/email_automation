@@ -193,4 +193,4 @@ jobs:
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under a **Proprietary License**. All rights are reserved by the author, Anirudh Sharma. No use, distribution, or modification of this code is allowed without explicit permission from the author. For more details, please refer to the [LICENSE](./LICENSE) file.
