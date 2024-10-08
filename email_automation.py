@@ -10,7 +10,6 @@ from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from email.mime.message import MIMEMessage
 import cohere
 from cohere import Client, ClassifyExample
 from dotenv import load_dotenv
@@ -84,6 +83,7 @@ def analyze_email(service, message):
     
     subject = ''
     from_email = ''
+    message_id = ''
     for header in headers:
         if header['name'] == 'Subject':
             subject = header['value']
@@ -92,20 +92,37 @@ def analyze_email(service, message):
             # Parse the email address from the 'From' header
             from_name, from_email = parseaddr(from_email_full)
             from_email = from_email.lower()  # Convert to lowercase for consistency
+        elif header['name'] == 'Message-ID':
+            message_id = header['value']
     
     # Get the email body
     body = ''
     if 'parts' in payload:
-        parts = payload['parts']
-        for part in parts:
-            if part['mimeType'] == 'text/plain':
-                data = part['body'].get('data', '')
-                body += base64.urlsafe_b64decode(data.encode('ASCII')).decode('utf-8', errors='ignore')
+        body = get_email_body(payload)
     else:
         data = payload.get('body', {}).get('data', '')
         body = base64.urlsafe_b64decode(data.encode('ASCII')).decode('utf-8', errors='ignore')
     
-    return from_email, subject, body
+    thread_id = msg.get('threadId')
+    
+    return from_email, subject, body, thread_id, message_id
+
+def get_email_body(payload):
+    """Extract the email body from the payload."""
+    body = ''
+    if 'parts' in payload:
+        for part in payload['parts']:
+            if part['mimeType'] == 'text/plain':
+                data = part['body'].get('data', '')
+                body += base64.urlsafe_b64decode(data.encode('ASCII')).decode('utf-8', errors='ignore')
+            elif part['mimeType'] == 'text/html':
+                continue  # Skip HTML parts if you prefer plain text
+            elif part['mimeType'].startswith('multipart/'):
+                body += get_email_body(part)
+    else:
+        data = payload.get('body', {}).get('data', '')
+        body += base64.urlsafe_b64decode(data.encode('ASCII')).decode('utf-8', errors='ignore')
+    return body
 
 def categorize_email(body, examples, threshold=0.3):
     """Categorize the email using Cohere API based on its content."""
@@ -126,53 +143,38 @@ def categorize_email(body, examples, threshold=0.3):
     
     return prediction
 
-def create_message(to, subject, message_text):
+def create_message(to, subject, message_text, in_reply_to=None, references=None, cc=None, original_body=None):
     """Create a MIME message for sending."""
-    message = MIMEText(message_text)
-    message['to'] = to
-    message['subject'] = subject
+    message = MIMEMultipart()
+    message['To'] = to
+    message['Subject'] = subject
+    message['From'] = os.environ.get('SUPPORT_EMAIL_ID')
+    
+    if cc:
+        message['Cc'] = cc
+    if in_reply_to:
+        message['In-Reply-To'] = in_reply_to
+    if references:
+        message['References'] = references
+
+    # Attach the response body
+    message.attach(MIMEText(message_text, 'plain'))
+
+    # Include the original email content if provided
+    if original_body:
+        # Format the original message
+        original_message = f"\n\n--- Original Message ---\n{original_body}"
+        message.attach(MIMEText(original_message, 'plain'))
+
     raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
     return {'raw': raw_message}
 
-def send_message(service, message):
+def send_message(service, message, thread_id=None):
     """Send an email message using the Gmail API."""
+    if thread_id:
+        message['threadId'] = thread_id  # Include threadId in the message body
     sent_message = service.users().messages().send(userId='me', body=message).execute()
     return sent_message
-
-def forward_email(service, message_id, to_email):
-    if not to_email:
-        raise ValueError("Recipient email address is missing. Please check the MANUAL_SUPPORT_EMAIL_ID environment variable.")
-    
-    print(f"Forwarding email to {to_email}")
-    
-    # Fetch the original email in raw format
-    original_msg = service.users().messages().get(userId='me', id=message_id, format='raw').execute()
-    raw_message = original_msg['raw']
-    
-    # Decode the raw message
-    msg_bytes = base64.urlsafe_b64decode(raw_message)
-    mime_msg = email.message_from_bytes(msg_bytes)
-    
-    # Create a new email message to forward
-    fwd = MIMEMultipart()
-    fwd['To'] = to_email
-    fwd['From'] = os.environ.get('SUPPORT_EMAIL_ID')
-    fwd['Subject'] = 'FWD: ' + mime_msg['Subject']
-    
-    # Attach a message body
-    body = MIMEText("Please see the forwarded message below.\n\n")
-    fwd.attach(body)
-    
-    # Attach the original message
-    attached_msg = MIMEMessage(mime_msg)
-    attached_msg.add_header('Content-Disposition', 'attachment', filename='forwarded_message.eml')
-    fwd.attach(attached_msg)
-    
-    # Encode the message and send
-    raw_fwd = base64.urlsafe_b64encode(fwd.as_bytes()).decode()
-    message = {'raw': raw_fwd}
-    
-    send_message(service, message)
 
 def main():
     """Main function to process emails."""
@@ -210,7 +212,7 @@ def main():
         print("No new messages.")
     else:
         for message in messages:
-            from_email, subject, body = analyze_email(service, message)
+            from_email, subject, body, thread_id, message_id = analyze_email(service, message)
     
             # Check if sender is a registered customer
             customer = customers_collection.find_one({'email': from_email.lower()})
@@ -232,15 +234,32 @@ def main():
             user_name = customer.get('name', 'User')  # Default to 'User' if name not available
             response_body = response_body_template.format(user_name=user_name)
     
-            response = create_message(from_email, response_subject, response_body)
-    
+            # Prepare CC field and include original email if necessary
+            cc_email = None
+            original_email_body = None
             if category == 'other':
-                # Forward the email to support team
-                forward_email(service, message['id'], os.environ.get('MANUAL_SUPPORT_EMAIL_ID'))
-                print(f"Forwarded email from {from_email} to support team.")
+                # Add support email to CC
+                cc_email = os.environ.get('MANUAL_SUPPORT_EMAIL_ID')
+                if cc_email:
+                    print(f"Adding {cc_email} to CC.")
+                else:
+                    print("MANUAL_SUPPORT_EMAIL_ID not set.")
+                # Include the original email body in the response
+                original_email_body = f"Subject: {subject}\nFrom: {from_email}\n\n{body}"
     
-            # Send the response email
-            send_message(service, response)
+            # Create the reply message
+            response = create_message(
+                to=from_email,
+                subject=response_subject,
+                message_text=response_body,
+                in_reply_to=message_id,
+                references=message_id,
+                cc=cc_email,
+                original_body=original_email_body  # Include original email content
+            )
+    
+            # Send the response email as a reply
+            send_message(service, response, thread_id=thread_id)
             print(f"Responded to email from {from_email} regarding {category.replace('_', ' ')}.")
     
             # Mark the message as read
